@@ -2,6 +2,7 @@ import discord
 import asyncio
 import discord.ext.commands
 from discord.ui import Button, button, View
+import re
 
 import discord.ext
 
@@ -14,6 +15,16 @@ anonymous_reports = set()
 anonymous_report_id = 0
 # List of user_ids with open staff applications
 staff_applications = {}
+
+# Stores channel of all threads with default names like "dog man's mod request"
+# We will repeatedly search through these threads looking for renames, then remove them from the set
+default_mod_requests = set()
+default_questions = set()
+
+# Grab the a:( title )b: 
+first_part_regex = re.compile("[a][\.|:]([\s\S]*)[b][\.|:]", re.IGNORECASE)
+def evaluate_channel_rename():
+    pass
 
 # Removes all open tickets which were left open the last time the bot was shut down
 async def clean_tickets(client: discord.ext.commands.Bot):
@@ -102,18 +113,66 @@ class OpenTickets(View):
             return
         apply_channel_id = 1232855364173565992
         channel = interaction.guild.get_channel(apply_channel_id)
-        interaction.user.mention
-        thread: discord.Thread = await channel.create_thread(name=f"Staff application of {interaction.user.display_name}", content="Thread")
-        staff_applications.add(interaction.user.id)
+
+        content = """a. What is your minecraft username?
+b. What is your discord username?
+c. How old are you?
+d. Where did you find us?
+e. What position are you applying for?
+f. What past experiences do you have?
+g. Do you have a portfolio?
+h. How long ago did you join the server?
+i. How many hours per week can you commit to the server?
+j. Do you understand abuse of your position will result in a premanent ban from the server with no chance of appeal?
+k. Please provide any additional information you will be useful in the application process here."""
+        creation = await channel.create_thread(name=f"Staff application of {interaction.user.display_name}", content=content)
+        await interaction.followup.send(
+            embed= discord.Embed(
+                description = f"Created your application thread in {creation.thread.mention}",
+                color = discord.Color.blurple()
+            ),
+            ephemeral=True
+        )
 
     
     @button(label="Mod Suggestion",style=discord.ButtonStyle.blurple, emoji="🧐",custom_id="mod_suggest")
     async def suggest(self, interaction: discord.Interaction, button: Button):
         await interaction.response.defer(ephemeral=True)
+        suggest_channel_id = 1232870928434597930
+        channel = interaction.guild.get_channel(suggest_channel_id)
+        
+        content = """A. What is the name of the mod?
+B. Please list all versions of minecraft the mod is available in
+C. Please give a link to the mod
+D. Why do you think the mod should be added?
+"""
+        creation = await channel.create_thread(name=f"{interaction.user.display_name}'s mod request", content=content)
+        await creation.message.add_reaction('✅')
+        await creation.message.add_reaction('❌')
+
+        await interaction.followup.send(
+            embed= discord.Embed(
+                description = f"Created your mod suggestion thread in {creation.thread.mention}",
+                color = discord.Color.blurple()
+            ),
+            ephemeral=True
+        )
 
     @button(label="Ask a Question",style=discord.ButtonStyle.blurple, emoji="🥪",custom_id="questions")
     async def ask_question(self, interaction: discord.Interaction, button: Button):
         await interaction.response.defer(ephemeral=True)
+        questions_channel_id = 1232870974773395496
+        channel = interaction.guild.get_channel(questions_channel_id)
+        content = "A. What is your question? (Please be concise so this answer can be used as the thread title)\nB. Provide any further elaboration if necessary"
+        creation = await channel.create_thread(name=f"{interaction.user.display_name}'s question", content=content)
+
+        await interaction.followup.send(
+            embed= discord.Embed(
+                description = f"Created your question thread in {creation.thread.mention}",
+                color = discord.Color.blurple()
+            ),
+            ephemeral=True
+        )
         
 class AnonymousReportPrompt(View):
     def __init__(self):
@@ -238,7 +297,7 @@ class CloseButton(View):
         )
         close_ticket_message = open_tickets[interaction.user.id][1]
         del open_tickets[interaction.user.id]
-        anonymous_reports.remove(interaction.user.id)
+        anonymous_reports.discard(interaction.user.id)
 
         await close_ticket_message.delete()
 
