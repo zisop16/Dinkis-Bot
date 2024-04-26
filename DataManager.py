@@ -1,4 +1,5 @@
 from pymongo import MongoClient
+import time
 
 class DataManager:
     def __init__(self, password):
@@ -18,9 +19,27 @@ class DataManager:
     def add_user(self, user_id):
         post = {
             "_id": user_id,
-            "warnings": 0
+            "warnings": 0,
+            # Time in UNIX of last staff application
+            "last_application": 0
         }
         self.user_data.insert_one(post)
+
+    def reset_application_timer(self, user_id):
+        self.safe_add(user_id)
+        query = {"_id": user_id}
+        command = {
+            "$set": {
+                "last_application": time.time()
+            }
+        }
+
+    def can_apply(self, user_id):
+        data = self.get_user(user_id)
+        last_application = data["last_application"]
+        delay = time.time() - last_application
+        three_months = 60 * 60 * 24 * 30
+        return delay > three_months
 
     def add_warning(self, user_id):
         query = {"_id": user_id}
