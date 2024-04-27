@@ -260,11 +260,10 @@ A. Bonnie_dinkle
 b. bonnie and the dinkises
 Only the most recent message you have sent before submitting the suggestion will be read, so contain your entire suggestion within the last message you send me before pressing the submit button."""
         
-        questions = """a. What is your in game name?
-b. What team are you requesting to join?
-c. What are your goals in joining this team?
-d. Why should they accept you?
-e. Provide any additional information here.
+        questions = """a. What is the name of your team?
+b. What is your team's goals?
+c. Why should someone join your team?
+d. Provide any additional information here.
 """
         suggestion_embed = discord.Embed(
                 title="LFT Form Template",
@@ -456,12 +455,11 @@ class SubmitButton(View):
             await deletion
 
         if self.type ==  SubmitButton.LFT:
-            username_match = SubmitButton.username_regex.search(recent_message.content)
-            team_name_match = SubmitButton.part_b_regex.search(recent_message.content)
+            team_name_match = SubmitButton.part_a_regex.search(recent_message.content)
             if team_name_match is None or username_match is None:
                 await interaction.followup.send(
                     embed= discord.Embed(
-                        description = f"I couldn't find information about what team you want to join, or your username in your most recent submission. Please reformat and try again.",
+                        description = f"I couldn't find your team name in your most recent submission. Please reformat and try again.",
                         color = discord.Color.blurple()
                     ),
                     ephemeral=True
@@ -470,7 +468,7 @@ class SubmitButton(View):
             username = username_match.groups()[0]
             team_name = team_name_match.groups()[0]
             creation = await thread_channel.create_thread(
-                name=f"{username} looking to join: {team_name}",
+                name=f"{team_name} recruitment",
                 content=f"{recent_message.content}\nLFT thread posted by: {interaction.user.mention}"
             )
         deletion = await (await interaction.original_response()).delete()

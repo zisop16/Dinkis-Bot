@@ -89,35 +89,37 @@ async def form_unban(interaction: discord.Interaction, user: discord.Member):
             description=f"User: {user.mention} was unbanned from forms"
     ))
 
-@form_ban.error
-@form_unban.error
-@issue_warning.error
-@create_announcement.error
-async def ban_error(interaction: discord.Interaction, error):
-    if isinstance(error, app_commands.errors.MissingPermissions):
-        await interaction.response.defer(ephemeral=True)
-        await interaction.followup.send(embed=discord.Embed(
-            description=str(error)
-        ))
+
     
 
 @client.tree.command(name="ticket")
+@app_commands.checks.has_permissions(administrator=True)
 async def create_ticket(interaction: discord.Interaction):
     """
     Open a ticket with mister dinkis to begin various forms
     """
-    
-    await interaction.response.defer(ephemeral=True)
     banned = await check_form_banned(interaction)
     if banned:
         return
 
-    await interaction.followup.send(
+    await interaction.response.send_message(
         embed = discord.Embed(
             description="Press the button to create a new ticket."
         ),
         view = OpenTickets()
     )
+
+@form_ban.error
+@form_unban.error
+@issue_warning.error
+@create_ticket.error
+@create_announcement.error
+async def permissions_error(interaction: discord.Interaction, error):
+    if isinstance(error, app_commands.errors.MissingPermissions):
+        await interaction.response.defer(ephemeral=True)
+        await interaction.followup.send(embed=discord.Embed(
+            description=str(error)
+        ))
 
 url_regex = re.compile(r"(https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|www\.[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9]+\.[^\s]{2,}|www\.[a-zA-Z0-9]+\.[^\s]{2,})")
 
