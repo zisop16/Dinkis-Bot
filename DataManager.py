@@ -56,6 +56,26 @@ class DataManager:
         }
         self.user_data.update_one(query, command)
 
+    def remove_warning(self, user_id):
+        self.safe_add(user_id)
+        query = {"_id": user_id}
+        command = {
+            "$inc": {
+                "warnings": -1
+            }
+        }
+        self.user_data.update_one(query, command)
+
+    def reset_warnings(self, user_id):
+        self.safe_add(user_id)
+        query = {"_id": user_id}
+        command = {
+            "$set": {
+                "warnings": 0
+            }
+        }
+        self.user_data.update_one(query, command)
+
     def get_warnings(self, user_id):
         data = self.get_user(user_id)
         warnings = data["warnings"]

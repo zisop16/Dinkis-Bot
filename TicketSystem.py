@@ -334,7 +334,7 @@ class SubmitButton(View):
             self.channel_id = NationsIDs.lft_channel
         if type == SubmitButton.TRADE:
             self.channel_id = NationsIDs.trade_channel
-        if type == _:
+        else:
             raise SubmitButtonException(f"Attempted to create a submit button of type: {type}")
         self.server = server
         self.type = type

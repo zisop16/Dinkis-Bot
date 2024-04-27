@@ -36,6 +36,32 @@ async def issue_warning(interaction: discord.Interaction, user: discord.Member):
         description=f"User: {user.mention} now has {warnings} warning{'' if warnings == 1 else 's total.'}"
     ))
 
+@client.tree.command(name="unwarn")
+@app_commands.describe(user="User to unwarn")
+@app_commands.checks.has_permissions(moderate_members=True)
+async def remove_warning(interaction: discord.Interaction, user: discord.Member):
+    """
+    Unwarn a user, removing 1 warning from their count
+    """
+    DataManager.manager.remove_warning(user.id)
+    warnings = DataManager.manager.get_warnings(user.id)
+    await interaction.response.send_message(embed = discord.Embed(
+        description=f"User: {user.mention} now has {warnings} warning{'' if warnings == 1 else 's total.'}"
+    ))
+
+@client.tree.command(name="resetwarn")
+@app_commands.describe(user="User to reset warnings for")
+@app_commands.checks.has_permissions(moderate_members=True)
+async def remove_warning(interaction: discord.Interaction, user: discord.Member):
+    """
+    Sets a user's warnings count to 0
+    """
+    DataManager.manager.reset_warnings(user.id)
+    await interaction.response.send_message(embed = discord.Embed(
+        description=f"User: {user.mention} now has 0 warnings."
+    ))
+
+
 @client.tree.command(name="announce")
 @app_commands.describe(title="Title of Announcement", pings="Whether to ping the pings role", server_status="Whether to ping server status role", message="Message of announcement")
 @app_commands.checks.has_permissions(moderate_members=True)
@@ -66,7 +92,7 @@ async def form_ban(interaction: discord.Interaction, user: discord.Member):
     Bans a user from accessing bot forms
     """
     await interaction.response.defer(ephemeral=True)
-    
+
     server = interaction.guild
     form_ban = server.get_role(NationsIDs.form_ban_role)
     await user.add_roles(form_ban)
