@@ -325,19 +325,18 @@ class SubmitButton(View):
 
     def __init__(self, server: discord.Guild, type):
         super().__init__(timeout=None)
-        match(type):
-            case SubmitButton.STAFF_APPLICATION:
-                self.channel_id = NationsIDs.staff_application
-            case SubmitButton.QUESTION_THREAD:
-                self.channel_id = NationsIDs.question_channel
-            case SubmitButton.MOD_SUGGESTION:
-                self.channel_id = NationsIDs.suggestion_channel
-            case SubmitButton.LFT:
-                self.channel_id = NationsIDs.lft_channel
-            case SubmitButton.TRADE:
-                self.channel_id = NationsIDs.trade_channel
-            case _:
-                raise SubmitButtonException(f"Attempted to create a submit button of type: {type}")
+        if type == SubmitButton.STAFF_APPLICATION:
+            self.channel_id = NationsIDs.staff_application
+        if type == SubmitButton.QUESTION_THREAD:
+            self.channel_id = NationsIDs.question_channel
+        if type == SubmitButton.MOD_SUGGESTION:
+            self.channel_id = NationsIDs.suggestion_channel
+        if type == SubmitButton.LFT:
+            self.channel_id = NationsIDs.lft_channel
+        if type == SubmitButton.TRADE:
+            self.channel_id = NationsIDs.trade_channel
+        if type == _:
+            raise SubmitButtonException(f"Attempted to create a submit button of type: {type}")
         self.server = server
         self.type = type
 
@@ -358,123 +357,122 @@ class SubmitButton(View):
         
         thread_channel = self.server.get_channel(self.channel_id)
 
-        match(self.type):
-            case SubmitButton.STAFF_APPLICATION:
-                can_apply = await ensure_application_delay(interaction)
-                if not can_apply:
-                    return
-                match = SubmitButton.username_regex.search(recent_message.content)
-                if match is None:
-                    await interaction.followup.send(
-                        embed= discord.Embed(
-                            description = f"I couldn't find your username in your most recent submission. Please reformat and try again.",
-                            color = discord.Color.blurple()
-                        ),
-                        ephemeral=True
-                    )
-                    return
-                username = match.groups()[0]
-                creation = thread_channel.create_thread(
-                    name=f"{username}'s Application for Staff",
-                    content=f"{recent_message.content}\n{username}'s discord: {interaction.user.mention}",
+        if self.type == SubmitButton.STAFF_APPLICATION:
+            can_apply = await ensure_application_delay(interaction)
+            if not can_apply:
+                return
+            match = SubmitButton.username_regex.search(recent_message.content)
+            if match is None:
+                await interaction.followup.send(
+                    embed= discord.Embed(
+                        description = f"I couldn't find your username in your most recent submission. Please reformat and try again.",
+                        color = discord.Color.blurple()
+                    ),
+                    ephemeral=True
                 )
-                DataManager.manager.reset_application_timer(interaction.user.id)
-                creation: discord.channel.ThreadWithMessage = await creation
+                return
+            username = match.groups()[0]
+            creation = thread_channel.create_thread(
+                name=f"{username}'s Application for Staff",
+                content=f"{recent_message.content}\n{username}'s discord: {interaction.user.mention}",
+            )
+            DataManager.manager.reset_application_timer(interaction.user.id)
+            creation: discord.channel.ThreadWithMessage = await creation
                 
                 
-            case SubmitButton.MOD_SUGGESTION:
-                match = SubmitButton.part_a_regex.search(recent_message.content)
-                if match is None:
-                    await interaction.followup.send(
-                        embed= discord.Embed(
-                            description = f"I couldn't find the mod name in your most recent submission. Please reformat and try again.",
-                            color = discord.Color.blurple()
-                        ),
-                        ephemeral=True
-                    )
-                    return
-                mod_name = match.groups()[0]
-                def strip(string: str):
-                    return string.lower().replace(' ', '')
-                stripped = strip(mod_name)
-                duplicate = None
-                for thread in thread_channel.threads:
-                    if strip(thread.name) == stripped:
-                        duplicate = thread
-                        break
-                
-                if duplicate:
-                    await interaction.followup.send(
-                        embed=discord.Embed(
-                            description=f"That mod has already been suggested: {duplicate.mention}"
-                        ), ephemeral=True
-                    )
-                    return
-                creation: discord.channel.ThreadWithMessage = await thread_channel.create_thread(
-                    name=mod_name,
-                    content = f"{recent_message.content}\nSuggested by: {interaction.user.mention}"
+        elif self.type == SubmitButton.MOD_SUGGESTION:
+            match = SubmitButton.part_a_regex.search(recent_message.content)
+            if match is None:
+                await interaction.followup.send(
+                    embed= discord.Embed(
+                        description = f"I couldn't find the mod name in your most recent submission. Please reformat and try again.",
+                        color = discord.Color.blurple()
+                    ),
+                    ephemeral=True
                 )
-                await creation.message.add_reaction('✅')
-                await creation.message.add_reaction('❌')
+                return
+            mod_name = match.groups()[0]
+            def strip(string: str):
+                return string.lower().replace(' ', '')
+            stripped = strip(mod_name)
+            duplicate = None
+            for thread in thread_channel.threads:
+                if strip(thread.name) == stripped:
+                    duplicate = thread
+                    break
+            
+            if duplicate:
+                await interaction.followup.send(
+                    embed=discord.Embed(
+                        description=f"That mod has already been suggested: {duplicate.mention}"
+                    ), ephemeral=True
+                )
+                return
+            creation: discord.channel.ThreadWithMessage = await thread_channel.create_thread(
+                name=mod_name,
+                content = f"{recent_message.content}\nSuggested by: {interaction.user.mention}"
+            )
+            await creation.message.add_reaction('✅')
+            await creation.message.add_reaction('❌')
 
-            case SubmitButton.QUESTION_THREAD:
-                match = SubmitButton.part_a_regex.search(recent_message.content)
-                if match is None:
-                    await interaction.followup.send(
-                        embed= discord.Embed(
-                            description = f"I couldn't find the question in your most recent submission. Please reformat and try again.",
-                            color = discord.Color.blurple()
-                        ),
-                        ephemeral=True
-                    )
-                    return
-                question = match.groups()[0]
-                creation = thread_channel.create_thread(
-                    name=question,
-                    content = f"{recent_message.content}\nAsked by: {interaction.user.mention}"
+        elif self.type == SubmitButton.QUESTION_THREAD:
+            match = SubmitButton.part_a_regex.search(recent_message.content)
+            if match is None:
+                await interaction.followup.send(
+                    embed= discord.Embed(
+                        description = f"I couldn't find the question in your most recent submission. Please reformat and try again.",
+                        color = discord.Color.blurple()
+                    ),
+                    ephemeral=True
                 )
-                creation: discord.channel.ThreadWithMessage = await creation
+                return
+            question = match.groups()[0]
+            creation = thread_channel.create_thread(
+                name=question,
+                content = f"{recent_message.content}\nAsked by: {interaction.user.mention}"
+            )
+            creation: discord.channel.ThreadWithMessage = await creation
 
-            case SubmitButton.TRADE:
-                resource_match = SubmitButton.part_c_regex.search(recent_message.content)
-                username_match = SubmitButton.username_regex.search(recent_message.content)
-                if resource_match is None or username_match is None:
-                    await interaction.followup.send(
-                        embed= discord.Embed(
-                            description = f"I couldn't find your username / requested resource in your most recent submission. Please reformat and try again.",
-                            color = discord.Color.blurple()
-                        ),
-                        ephemeral=True
-                    )
-                    return
-                resource = resource_match.groups()[0]
-                minecraft_name = username_match.groups()[0]
-                creation = thread_channel.create_thread(
-                    name=f"{minecraft_name}: {resource}",
-                    content=f"{recent_message.content}\nTrade request submitted by: {interaction.user.mention}"
+        elif self.type ==  SubmitButton.TRADE:
+            resource_match = SubmitButton.part_c_regex.search(recent_message.content)
+            username_match = SubmitButton.username_regex.search(recent_message.content)
+            if resource_match is None or username_match is None:
+                await interaction.followup.send(
+                    embed= discord.Embed(
+                        description = f"I couldn't find your username / requested resource in your most recent submission. Please reformat and try again.",
+                        color = discord.Color.blurple()
+                    ),
+                    ephemeral=True
                 )
-                
-                creation: discord.channel.ThreadWithMessage = await creation
-                await deletion
+                return
+            resource = resource_match.groups()[0]
+            minecraft_name = username_match.groups()[0]
+            creation = thread_channel.create_thread(
+                name=f"{minecraft_name}: {resource}",
+                content=f"{recent_message.content}\nTrade request submitted by: {interaction.user.mention}"
+            )
+            
+            creation: discord.channel.ThreadWithMessage = await creation
+            await deletion
 
-            case SubmitButton.LFT:
-                username_match = SubmitButton.username_regex.search(recent_message.content)
-                team_name_match = SubmitButton.part_b_regex.search(recent_message.content)
-                if team_name_match is None or username_match is None:
-                    await interaction.followup.send(
-                        embed= discord.Embed(
-                            description = f"I couldn't find information about what team you want to join, or your username in your most recent submission. Please reformat and try again.",
-                            color = discord.Color.blurple()
-                        ),
-                        ephemeral=True
-                    )
-                    return
-                username = username_match.groups()[0]
-                team_name = team_name_match.groups()[0]
-                creation = await thread_channel.create_thread(
-                    name=f"{username} looking to join: {team_name}",
-                    content=f"{recent_message.content}\nLFT thread posted by: {interaction.user.mention}"
+        if self.type ==  SubmitButton.LFT:
+            username_match = SubmitButton.username_regex.search(recent_message.content)
+            team_name_match = SubmitButton.part_b_regex.search(recent_message.content)
+            if team_name_match is None or username_match is None:
+                await interaction.followup.send(
+                    embed= discord.Embed(
+                        description = f"I couldn't find information about what team you want to join, or your username in your most recent submission. Please reformat and try again.",
+                        color = discord.Color.blurple()
+                    ),
+                    ephemeral=True
                 )
+                return
+            username = username_match.groups()[0]
+            team_name = team_name_match.groups()[0]
+            creation = await thread_channel.create_thread(
+                name=f"{username} looking to join: {team_name}",
+                content=f"{recent_message.content}\nLFT thread posted by: {interaction.user.mention}"
+            )
         deletion = await (await interaction.original_response()).delete()
 
 
