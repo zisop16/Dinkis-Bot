@@ -6,6 +6,8 @@ import re
 
 import discord.ext
 import NationsIDs
+import DataManager
+import datetime
 
 # Maps userIDs with open tickets to the channel of their ticket
 open_tickets = {}
@@ -33,10 +35,33 @@ async def check_form_banned(interaction: discord.Interaction):
     
     return banned
 
+async def ensure_application_delay(interaction):
+    remaining_time = DataManager.manager.remaining_application_time(interaction.user.id)
+    if remaining_time > datetime.timedelta(seconds=0):
+        days = remaining_time.days
+        hours = remaining_time.seconds // 3600
+        minutes = (remaining_time.seconds - (3600 * hours)) // 60
+        seconds = remaining_time.seconds % 60
+        if days > 0:
+            time_message = f"{days} days, {hours} hours"
+        elif hours > 0:
+            time_message = f"{hours} hours, {minutes} minutes"
+        else:
+            time_message = f"{minutes} minutes, {seconds} seconds"
+        await interaction.followup.send(
+            embed= discord.Embed(
+                description = f"You've already applied for staff within the last 30 days. You may apply again in {time_message}",
+                color = discord.Color.blurple()
+            ),
+            ephemeral=True
+        )
+        return False
+    return True
+
 # Removes all open tickets which were left open the last time the bot was shut down
 async def clean_tickets(client: discord.ext.commands.Bot):
-    open_tickets = discord.utils.get(client.guilds[0].categories, id=NationsIDs.open_tickets_category)
-    deletions = [channel.delete() for channel in open_tickets.channels]
+    existing_tickets = discord.utils.get(client.guilds[0].categories, id=NationsIDs.open_tickets_category)
+    deletions = [channel.delete() for channel in existing_tickets.channels]
     for deletion in deletions:
         await deletion
 
@@ -125,18 +150,9 @@ class OpenTickets(View):
         banned = await check_form_banned(interaction)
         if banned:
             return
-        """
-        if interaction.user.id in staff_applications:
-            channel = staff_applications[interaction.user.id]
-            await interaction.followup.send(
-                embed= discord.Embed(
-                    description = f"You already have an ongoing staff application",
-                    color = discord.Color.blurple()
-                ),
-                ephemeral=True
-            )
+        can_apply = await ensure_application_delay(interaction)
+        if not can_apply:
             return
-        """
         
         footer="""The title of the post will be based on your response to part A, so please make sure to put your name like A. Dinkis_Brother23
 Only the most recent message you have sent before submitting the application will be read, so contain your entire application within the last message you send me before pressing the submit button."""
@@ -158,6 +174,7 @@ j. Please provide any additional information you will be useful in the applicati
         application_embed.add_field(name="Questions", value=questions)
         application_embed.set_footer(text=footer)
         user_ticket_message = await interaction.user.send(embed=application_embed, view = SubmitButton(interaction.guild, SubmitButton.STAFF_APPLICATION))
+        
         
         await interaction.followup.send(
             embed= discord.Embed(
@@ -199,6 +216,72 @@ D. Why do you think the mod should be added?
             ephemeral=True
         )
 
+    @button(label="Resource Trade",style=discord.ButtonStyle.blurple, emoji="💸",custom_id="resource_trade")
+    async def resource_trade(self, interaction: discord.Interaction, button: Button):
+        await interaction.response.defer(ephemeral=True)
+        banned = await check_form_banned(interaction)
+        if banned:
+            return
+        
+        footer="""The title of the post will be based on your response to parts A and C, so please make sure to detail your request like \nA. dingleman36\n...\nC. 15 blaze rods
+Only the most recent message you have sent before submitting the suggestion will be read, so contain your entire suggestion within the last message you send me before pressing the submit button."""
+        
+        questions = """A. What is your minecraft username?
+B. What nation are you part of?
+C. What resource(s) are you requesting, and in what quantity?
+D. What are you offering in return?
+E. At what time will you be available to conduct the trade in game?
+"""
+        suggestion_embed = discord.Embed(
+                title="Trade Form Template",
+                color = discord.Color.green()
+            )
+        suggestion_embed.add_field(name="Questions", value=questions)
+        suggestion_embed.set_footer(text=footer)
+        user_ticket_message = await interaction.user.send(embed=suggestion_embed, view = SubmitButton(interaction.guild, SubmitButton.TRADE))
+
+        await interaction.followup.send(
+            embed= discord.Embed(
+                description = f"I've messaged you a prompt regarding your mod suggestion",
+                color = discord.Color.blurple()
+            ),
+            ephemeral=True
+        )
+
+    @button(label="Post LFT Thread",style=discord.ButtonStyle.blurple, emoji="🤝",custom_id="looking_team")
+    async def look_for_team(self, interaction: discord.Interaction, button: Button):
+        await interaction.response.defer(ephemeral=True)
+        banned = await check_form_banned(interaction)
+        if banned:
+            return
+        
+        footer="""The title of the post will be based on your response to part A and B, so please make sure to detail your request like
+A. Bonnie_dinkle
+b. bonnie and the dinkises
+Only the most recent message you have sent before submitting the suggestion will be read, so contain your entire suggestion within the last message you send me before pressing the submit button."""
+        
+        questions = """a. What is your in game name?
+b. What team are you requesting to join?
+c. What are your goals in joining this team?
+d. Why should they accept you?
+e. Provide any additional information here.
+"""
+        suggestion_embed = discord.Embed(
+                title="LFT Form Template",
+                color = discord.Color.green()
+            )
+        suggestion_embed.add_field(name="Questions", value=questions)
+        suggestion_embed.set_footer(text=footer)
+        user_ticket_message = await interaction.user.send(embed=suggestion_embed, view = SubmitButton(interaction.guild, SubmitButton.LFT))
+
+        await interaction.followup.send(
+            embed= discord.Embed(
+                description = f"I've messaged you a prompt regarding your LFT thread",
+                color = discord.Color.blurple()
+            ),
+            ephemeral=True
+        )
+
     @button(label="Ask a Question",style=discord.ButtonStyle.blurple, emoji="🥪",custom_id="questions")
     async def ask_question(self, interaction: discord.Interaction, button: Button):
         await interaction.response.defer(ephemeral=True)
@@ -229,12 +312,16 @@ Only the most recent message you have sent before submitting the suggestion will
 class SubmitButtonException(Exception):
     pass
 class SubmitButton(View):
-    username_regex = re.compile(r"a[.|:]?[\s]?(\S*)", re.IGNORECASE)
-    part_a_regex = re.compile(r"a[.|:]?[\s]?(.*)(?:\n|$)", re.IGNORECASE)
+    username_regex = re.compile(r"^a[.|:]?[\s]?(\S*)", flags=re.IGNORECASE | re.MULTILINE)
+    part_a_regex = re.compile(r"^a[.|:]?[\s]?(.*)$", flags=re.IGNORECASE | re.MULTILINE)
+    part_b_regex = re.compile(r"^b[.|:]?[\s]?(.*)$", flags=re.IGNORECASE | re.MULTILINE)
+    part_c_regex = re.compile(r"^c[.|:]?[\s]?(.*)$", flags=re.IGNORECASE | re.MULTILINE)
 
     STAFF_APPLICATION = 0
     QUESTION_THREAD = 1
     MOD_SUGGESTION = 2
+    LFT = 3
+    TRADE = 4
 
     def __init__(self, server: discord.Guild, type):
         super().__init__(timeout=None)
@@ -245,6 +332,10 @@ class SubmitButton(View):
                 self.channel_id = NationsIDs.question_channel
             case SubmitButton.MOD_SUGGESTION:
                 self.channel_id = NationsIDs.suggestion_channel
+            case SubmitButton.LFT:
+                self.channel_id = NationsIDs.lft_channel
+            case SubmitButton.TRADE:
+                self.channel_id = NationsIDs.trade_channel
             case _:
                 raise SubmitButtonException(f"Attempted to create a submit button of type: {type}")
         self.server = server
@@ -269,7 +360,10 @@ class SubmitButton(View):
 
         match(self.type):
             case SubmitButton.STAFF_APPLICATION:
-                match = SubmitButton.username_regex.match(recent_message.content)
+                can_apply = await ensure_application_delay(interaction)
+                if not can_apply:
+                    return
+                match = SubmitButton.username_regex.search(recent_message.content)
                 if match is None:
                     await interaction.followup.send(
                         embed= discord.Embed(
@@ -280,15 +374,16 @@ class SubmitButton(View):
                     )
                     return
                 username = match.groups()[0]
-                await (await interaction.original_response()).delete()
-                await thread_channel.create_thread(
+                creation = thread_channel.create_thread(
                     name=f"{username}'s Application for Staff",
                     content=f"{recent_message.content}\n{username}'s discord: {interaction.user.mention}",
                 )
+                DataManager.manager.reset_application_timer(interaction.user.id)
+                creation: discord.channel.ThreadWithMessage = await creation
                 
                 
             case SubmitButton.MOD_SUGGESTION:
-                match = SubmitButton.part_a_regex.match(recent_message.content)
+                match = SubmitButton.part_a_regex.search(recent_message.content)
                 if match is None:
                     await interaction.followup.send(
                         embed= discord.Embed(
@@ -315,8 +410,7 @@ class SubmitButton(View):
                         ), ephemeral=True
                     )
                     return
-                await (await interaction.original_response()).delete()
-                creation = await thread_channel.create_thread(
+                creation: discord.channel.ThreadWithMessage = await thread_channel.create_thread(
                     name=mod_name,
                     content = f"{recent_message.content}\nSuggested by: {interaction.user.mention}"
                 )
@@ -324,7 +418,7 @@ class SubmitButton(View):
                 await creation.message.add_reaction('❌')
 
             case SubmitButton.QUESTION_THREAD:
-                match = SubmitButton.part_a_regex.match(recent_message.content)
+                match = SubmitButton.part_a_regex.search(recent_message.content)
                 if match is None:
                     await interaction.followup.send(
                         embed= discord.Embed(
@@ -335,18 +429,58 @@ class SubmitButton(View):
                     )
                     return
                 question = match.groups()[0]
-                await thread_channel.create_thread(
+                creation = thread_channel.create_thread(
                     name=question,
                     content = f"{recent_message.content}\nAsked by: {interaction.user.mention}"
                 )
-                await (await interaction.original_response()).delete()
+                creation: discord.channel.ThreadWithMessage = await creation
+
+            case SubmitButton.TRADE:
+                resource_match = SubmitButton.part_c_regex.search(recent_message.content)
+                username_match = SubmitButton.username_regex.search(recent_message.content)
+                if resource_match is None or username_match is None:
+                    await interaction.followup.send(
+                        embed= discord.Embed(
+                            description = f"I couldn't find your username / requested resource in your most recent submission. Please reformat and try again.",
+                            color = discord.Color.blurple()
+                        ),
+                        ephemeral=True
+                    )
+                    return
+                resource = resource_match.groups()[0]
+                minecraft_name = username_match.groups()[0]
+                creation = thread_channel.create_thread(
+                    name=f"{minecraft_name}: {resource}",
+                    content=f"{recent_message.content}\nTrade request submitted by: {interaction.user.mention}"
+                )
+                
+                creation: discord.channel.ThreadWithMessage = await creation
+                await deletion
+
+            case SubmitButton.LFT:
+                username_match = SubmitButton.username_regex.search(recent_message.content)
+                team_name_match = SubmitButton.part_b_regex.search(recent_message.content)
+                if team_name_match is None or username_match is None:
+                    await interaction.followup.send(
+                        embed= discord.Embed(
+                            description = f"I couldn't find information about what team you want to join, or your username in your most recent submission. Please reformat and try again.",
+                            color = discord.Color.blurple()
+                        ),
+                        ephemeral=True
+                    )
+                    return
+                username = username_match.groups()[0]
+                team_name = team_name_match.groups()[0]
+                creation = await thread_channel.create_thread(
+                    name=f"{username} looking to join: {team_name}",
+                    content=f"{recent_message.content}\nLFT thread posted by: {interaction.user.mention}"
+                )
+        deletion = await (await interaction.original_response()).delete()
+
 
         await interaction.followup.send(embed=discord.Embed(
-            description="I've posted your thread in the server",
+            description=f"I've posted your thread: {creation.thread.mention}",
         ), ephemeral=True)
-        
-                
-        # await thread_channel.create_thread
 
         
 class AnonymousReportPrompt(View):
@@ -369,32 +503,19 @@ class AnonymousReportPrompt(View):
             name=f"Anonymous Report #{anonymous_report_id}",
             overwrites=overwrites
         )
-        user_ticket_message = interaction.user.send(embed=discord.Embed(
+        footer = "All messages you send to me until this ticket is closed will be given to the admin team, but your identity will not be disclosed."
+        embed = discord.Embed(
                 title="Player report ticket created",
                 description="""1. What is the username of the player you are reporting?
 2. What are you reporting them for?
-3. Do you have evidence for your report?
-Note: All messages you send to me until this ticket is closed will be given to the admin team,
-But your identity will not be disclosed.""",
+3. Do you have evidence for your report?""",
                 color = discord.Color.green()
-            ),
-            view = CloseButton()
         )
+        embed.set_footer(text=footer)
+        user_ticket_message = interaction.user.send(embed=embed, view = CloseButton())
         # Moderators cannot see anonymous reports
-        close_ticket_message = channel.send(
-            embed=discord.Embed(
-                title="Player report ticket created",
-                description="""1. What is the username of the player you are reporting?
-2. What are you reporting them for?
-3. Do you have evidence for your report?
-Note: All messages you send to me until this ticket is closed will be given to the admin team,
-But your identity will not be disclosed.""",
-                color = discord.Color.green()
-            ),
-            view = CloseButton()
-        )
+        close_ticket_message = await channel.send(embed=embed, view = CloseButton())
         await user_ticket_message
-        await close_ticket_message
 
         anonymous_reports.add(interaction.user.id)
         open_tickets[interaction.user.id] = channel, close_ticket_message
@@ -458,19 +579,20 @@ class CloseButton(View):
     
     @button(label="Close the ticket",style=discord.ButtonStyle.red,custom_id="closeticket",emoji="🔒")
     async def close(self, interaction: discord.Interaction, button: Button):
-        await interaction.response.defer(ephemeral=True)
-        category: discord.CategoryChannel = discord.utils.get(interaction.guild.categories, id = NationsIDs.closed_tickets_category)
+        # await interaction.response.defer(ephemeral=True)
+        target_channel: discord.TextChannel = open_tickets[interaction.user.id][0]
         all_perms = discord.PermissionOverwrite(read_messages = True, send_messages = True, manage_messages = True)
-        moderator_role = interaction.guild.get_role(NationsIDs.moderator_role)
-        admin_role = interaction.guild.get_role(NationsIDs.admin_role)
+        nations_server = target_channel.guild
+        moderator_role = nations_server.get_role(NationsIDs.moderator_role)
+        admin_role = nations_server.get_role(NationsIDs.admin_role)
         overwrites = {
             moderator_role: all_perms,
             admin_role: all_perms,
-            interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False),
+            nations_server.default_role: discord.PermissionOverwrite(read_messages=False),
             interaction.user: discord.PermissionOverwrite(read_messages = True, send_messages=True),
         }
-        target_channel = open_tickets[interaction.user.id][0]
-        await target_channel.edit(category=category, overwrites=overwrites)
+        closed_category = discord.utils.get(nations_server.categories, id=NationsIDs.closed_tickets_category)
+        await target_channel.edit(category=closed_category, overwrites=overwrites)
         await target_channel.send(
             embed= discord.Embed(
                 description= f"Ticket Closed for {interaction.user.display_name}",
@@ -481,7 +603,6 @@ class CloseButton(View):
         close_ticket_message = open_tickets[interaction.user.id][1]
         del open_tickets[interaction.user.id]
         anonymous_reports.discard(interaction.user.id)
-
         await close_ticket_message.delete()
 
 class TrashButton(View):

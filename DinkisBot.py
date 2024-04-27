@@ -10,7 +10,7 @@ import sys, traceback
 
 import NationsIDs
 from TicketSystem import *
-from DataManager import *
+import DataManager
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -21,11 +21,42 @@ load_dotenv(find_dotenv())
 BOT_TOKEN = os.getenv("TOKEN")
 MONGO_PASS = os.getenv("MONGO_PASS")
 
-manager = DataManager(MONGO_PASS)
+DataManager.manager = DataManager.DataManager(MONGO_PASS)
 
 @client.tree.command(name="warn")
-async def issue_warning(interaction):
-    pass
+@app_commands.describe(user="User to warn")
+@app_commands.checks.has_permissions(moderate_members=True)
+async def issue_warning(interaction: discord.Interaction, user: discord.Member):
+    """
+    Warn a user, keeping a running count over multiple warnings
+    """
+    DataManager.manager.add_warning(user.id)
+    warnings = DataManager.manager.get_warnings(user.id)
+    await interaction.response.send_message(embed = discord.Embed(
+        description=f"User: {user.mention} now has {warnings} warning{'' if warnings == 1 else 's total.'}"
+    ))
+
+@client.tree.command(name="announce")
+@app_commands.describe(title="Title of Announcement", pings="Whether to ping the pings role", server_status="Whether to ping server status role", message="Message of announcement")
+@app_commands.checks.has_permissions(moderate_members=True)
+async def create_announcement(interaction: discord.Interaction, title: str, pings: bool, server_status: bool, message: str):
+    """
+    Creates an announcement in the announcements channel
+    """
+    await interaction.response.defer(ephemeral=True)
+    announcements_channel = interaction.guild.get_channel(NationsIDs.announcements_channel)
+    pings_role = interaction.guild.get_role(NationsIDs.pings_role)
+    server_status_role = interaction.guild.get_role(NationsIDs.server_status_role)
+    message = bytes(message, "utf-8").decode("unicode_escape")
+    message = f"{pings_role.mention if pings else ''} {server_status_role.mention if server_status else ''}\n{message}"
+    await announcements_channel.send(embed=discord.Embed(
+        title=title,
+        description=message
+    ))
+    
+    await interaction.followup.send(embed = discord.Embed(
+        description=f"Created your {title} announcement in channel: {announcements_channel.mention}"
+    ))
 
 @client.tree.command(name="formban")
 @app_commands.describe(user="User to ban from using bot forms")
@@ -37,10 +68,10 @@ async def form_ban(interaction: discord.Interaction, user: discord.Member):
     await interaction.response.defer(ephemeral=True)
     
     server = interaction.guild
-    form_ban = server.get_role(form_ban_id)
+    form_ban = server.get_role(NationsIDs.form_ban_role)
     await user.add_roles(form_ban)
     await interaction.followup.send(embed = discord.Embed(
-            description=f"User: {user.mention} was form banned"
+        description=f"User: {user.mention} was form banned"
     ))
 
 @client.tree.command(name="formunban")
@@ -52,7 +83,7 @@ async def form_unban(interaction: discord.Interaction, user: discord.Member):
     """
     await interaction.response.defer(ephemeral=True)
     server = interaction.guild
-    form_ban = server.get_role(form_ban_id)
+    form_ban = server.get_role(NationsIDs.form_ban_role)
     await user.remove_roles(form_ban)
     await interaction.followup.send(embed = discord.Embed(
             description=f"User: {user.mention} was unbanned from forms"
@@ -60,6 +91,8 @@ async def form_unban(interaction: discord.Interaction, user: discord.Member):
 
 @form_ban.error
 @form_unban.error
+@issue_warning.error
+@create_announcement.error
 async def ban_error(interaction: discord.Interaction, error):
     if isinstance(error, app_commands.errors.MissingPermissions):
         await interaction.response.defer(ephemeral=True)
@@ -88,6 +121,14 @@ async def create_ticket(interaction: discord.Interaction):
 
 url_regex = re.compile(r"(https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|www\.[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9]+\.[^\s]{2,}|www\.[a-zA-Z0-9]+\.[^\s]{2,})")
 
+async def get_thread_author(thread: discord.Thread):
+    if thread.starter_message is not None:
+        start_message = thread.starter_message
+    else:
+        start_message = await thread.fetch_message(thread.id)
+    thread_author = start_message.author
+    return thread_author
+
 from AutoResponseConfig import auto_responses
 @client.event
 async def on_message(message: discord.Message):
@@ -99,7 +140,6 @@ async def on_message(message: discord.Message):
         return
     # General Chat
     if message.channel.id == NationsIDs.general_channel:
-        
         allowed = False
         for role in message.author.roles:
             if role.id in NationsIDs.general_url_roles:
@@ -108,6 +148,36 @@ async def on_message(message: discord.Message):
         if not allowed and url_regex.search(message.content):
             await message.delete()
             return
+    
+    if type(message.channel) == discord.Thread:
+        thread_channel = message.channel.parent
+        # LFT thread
+        if thread_channel.id == NationsIDs.lft_channel:
+            thread = message.channel
+            start_message = await thread.fetch_message(thread.id)
+            thread_author = start_message.author
+            if message.author != thread_author:
+                deletion = message.delete()
+                reason = message.author.send(content="You are not allowed to write messages in other users' LFT threads.")
+                await deletion, await reason
+                return
+            # New thread has been created
+            if message == start_message:
+                all_threads = thread_channel.threads
+                count = 0
+                authors = [get_thread_author(thread) for thread in all_threads]
+                for author in authors:
+                    author = await author
+                    if author == message.author:
+                        count += 1
+                    if count == 2:
+                        break
+                # User has posted a second LFT thread
+                if count == 2:
+                    deletion = thread.delete()
+                    reason = message.author.send(content="You are not allowed to post more than one LFT thread.")
+                    await deletion, await reason
+                    return
     
     for regex, response in auto_responses.items():
         if regex.search(message.content):
@@ -122,8 +192,9 @@ async def on_ready():
     client.add_view(OpenTickets())
     client.add_view(CloseButton())
     client.add_view(TrashButton())
-    await clean_tickets(client)
+    clean = clean_tickets(client)
+    sync = client.tree.sync()
+    await clean, await sync
     print("mister dinkis is ready")
-    sync = await client.tree.sync()
 
 client.run(BOT_TOKEN)

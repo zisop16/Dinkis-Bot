@@ -1,7 +1,9 @@
 from pymongo import MongoClient
 import time
+import datetime
 
 class DataManager:
+    
     def __init__(self, password):
         api_url = f"mongodb+srv://p0six:{password}@cluster0.e7vueuh.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
         cluster = MongoClient(api_url)
@@ -10,6 +12,7 @@ class DataManager:
         self.server_data = db["ServerData"]
     
     def get_user(self, user_id):
+        self.safe_add(user_id)
         result = self.user_data.find_one({"_id": user_id})
         return result
     
@@ -33,15 +36,18 @@ class DataManager:
                 "last_application": time.time()
             }
         }
+        self.user_data.update_one(query, command)
 
-    def can_apply(self, user_id):
+    def remaining_application_time(self, user_id):
         data = self.get_user(user_id)
         last_application = data["last_application"]
         delay = time.time() - last_application
-        three_months = 60 * 60 * 24 * 30
-        return delay > three_months
+        delay = datetime.timedelta(seconds=delay)
+        three_months = datetime.timedelta(days=30)
+        return three_months - delay
 
     def add_warning(self, user_id):
+        self.safe_add(user_id)
         query = {"_id": user_id}
         command = {
             "$inc": {
@@ -56,5 +62,7 @@ class DataManager:
         return warnings
 
     def safe_add(self, user_id):
-        if not self.get_user(user_id):
+        if not self.user_data.find_one({"_id": user_id}):
             self.add_user(user_id)
+
+manager: DataManager = None

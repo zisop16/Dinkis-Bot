@@ -1,12 +1,15 @@
 server = 1146303330491056238
 administrator = 1148335950984912976
 general_channel = 1151789214439067678
+announcements_channel = 1146303501929029672
 closed_tickets_category = 1232831690863546418
 open_tickets_category = 1232831284909445200
 
 moderator_role = 1229278618325225553
 admin_role = 1229283129395777649
 form_ban_role = 1233110211951198271
+server_status_role = 1223303076874682388
+pings_role = 1223300729419071568
 
 # Roles who are allowed to send URLs in general
 general_url_roles = {
@@ -22,3 +25,5 @@ general_url_roles = {
 staff_application = 1232855364173565992
 question_channel = 1232870974773395496
 suggestion_channel = 1232870928434597930
+lft_channel = 1232870637735903252
+trade_channel = 1232871035200602225
