@@ -4,8 +4,8 @@ import datetime
 
 class DataManager:
     
-    def __init__(self, password):
-        api_url = f"mongodb+srv://p0six:{password}@cluster0.e7vueuh.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+    def __init__(self, user, password):
+        api_url = f"mongodb+srv://{user}:{password}@cluster0.e7vueuh.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
         cluster = MongoClient(api_url)
         db = cluster["NationsDiscord"]
         self.user_data = db["UserData"]
@@ -24,9 +24,22 @@ class DataManager:
             "_id": user_id,
             "warnings": 0,
             # Time in UNIX of last staff application
-            "last_application": 0
+            "last_application": 0,
+            "allow_help": True
         }
         self.user_data.insert_one(post)
+
+    def set_help_wishes(self, user_id, setting: bool):
+        query = {"_id": user_id}
+        command = {
+            "$set": {
+                "allow_help": setting
+            }
+        }
+        self.user_data.update_one(query, command)
+
+    def wants_help(self, user_id):
+        return self.get_user(user_id)["allow_help"]
 
     def reset_application_timer(self, user_id):
         self.safe_add(user_id)

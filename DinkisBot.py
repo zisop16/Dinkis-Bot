@@ -20,8 +20,9 @@ client = commands.Bot(intents=intents, command_prefix='/')
 load_dotenv(find_dotenv())
 BOT_TOKEN = os.getenv("TOKEN")
 MONGO_PASS = os.getenv("MONGO_PASS")
+MONGO_USER = os.getenv("MONGO_USER")
 
-DataManager.manager = DataManager.DataManager(MONGO_PASS)
+DataManager.manager = DataManager.DataManager(MONGO_USER, MONGO_PASS)
 
 @client.tree.command(name="warn")
 @app_commands.describe(user="User to warn")
@@ -48,6 +49,18 @@ async def remove_warning(interaction: discord.Interaction, user: discord.Member)
     await interaction.response.send_message(embed = discord.Embed(
         description=f"User: {user.mention} now has {warnings} warning{'' if warnings == 1 else 's total.'}"
     ))
+
+@client.tree.command(name="helpmessage")
+@app_commands.describe(setting="Whether to enable the bot help messages")
+@app_commands.checks.has_permissions(moderate_members=True)
+async def help_message_setting(interaction: discord.Interaction, setting: bool):
+    """
+    Set whether to allow auto help messages from bot
+    """
+    DataManager.manager.set_help_wishes(interaction.user.id, setting)
+    await interaction.response.send_message(embed = discord.Embed(
+        description=f"I will {'now' if setting else 'no longer'} send you auto help messages"
+    ), ephemeral=True)
 
 @client.tree.command(name="resetwarn")
 @app_commands.describe(user="User to reset warnings for")
@@ -207,16 +220,18 @@ async def on_message(message: discord.Message):
                     await deletion, await reason
                     return
     
-    for regex, response in auto_responses.items():
-        if regex.search(message.content):
-            embed = discord.Embed(description=response, color=discord.Color.dark_blue())
-            download_message: discord.Message = await message.reply(embed=embed)
-            await asyncio.sleep(60)
-            await download_message.delete()
-            return
+    if DataManager.manager.wants_help(message.author.id):
+        for regex, response in auto_responses.items():
+            if regex.search(message.content):
+                embed = discord.Embed(description=f"{response}\nTo disable this notification, use /helpmessage False", color=discord.Color.dark_blue())
+                download_message: discord.Message = await message.reply(embed=embed)
+                await asyncio.sleep(60)
+                await download_message.delete()
+                return
         
 @client.event
 async def on_ready():
+
     client.add_view(OpenTickets())
     client.add_view(CloseButton())
     client.add_view(TrashButton())
