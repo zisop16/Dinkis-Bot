@@ -326,13 +326,13 @@ class SubmitButton(View):
         super().__init__(timeout=None)
         if type == SubmitButton.STAFF_APPLICATION:
             self.channel_id = NationsIDs.staff_application
-        if type == SubmitButton.QUESTION_THREAD:
+        elif type == SubmitButton.QUESTION_THREAD:
             self.channel_id = NationsIDs.question_channel
-        if type == SubmitButton.MOD_SUGGESTION:
+        elif type == SubmitButton.MOD_SUGGESTION:
             self.channel_id = NationsIDs.suggestion_channel
-        if type == SubmitButton.LFT:
+        elif type == SubmitButton.LFT:
             self.channel_id = NationsIDs.lft_channel
-        if type == SubmitButton.TRADE:
+        elif type == SubmitButton.TRADE:
             self.channel_id = NationsIDs.trade_channel
         else:
             raise SubmitButtonException(f"Attempted to create a submit button of type: {type}")

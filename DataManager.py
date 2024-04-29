@@ -4,8 +4,8 @@ import datetime
 
 class DataManager:
     
-    def __init__(self, user, password):
-        api_url = f"mongodb+srv://{user}:{password}@cluster0.e7vueuh.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+    def __init__(self, username, password):
+        api_url = f"mongodb+srv://{username}:{password}@cluster0.e7vueuh.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
         cluster = MongoClient(api_url)
         db = cluster["NationsDiscord"]
         self.user_data = db["UserData"]
