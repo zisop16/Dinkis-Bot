@@ -454,9 +454,9 @@ class SubmitButton(View):
             creation: discord.channel.ThreadWithMessage = await creation
             await deletion
 
-        if self.type ==  SubmitButton.LFT:
+        else:
             team_name_match = SubmitButton.part_a_regex.search(recent_message.content)
-            if team_name_match is None or username_match is None:
+            if team_name_match is None:
                 await interaction.followup.send(
                     embed= discord.Embed(
                         description = f"I couldn't find your team name in your most recent submission. Please reformat and try again.",
@@ -465,10 +465,9 @@ class SubmitButton(View):
                     ephemeral=True
                 )
                 return
-            username = username_match.groups()[0]
             team_name = team_name_match.groups()[0]
             creation = await thread_channel.create_thread(
-                name=f"{team_name} recruitment",
+                name=f"{team_name} recruitment thread",
                 content=f"{recent_message.content}\nLFT thread posted by: {interaction.user.mention}"
             )
         deletion = await (await interaction.original_response()).delete()
@@ -509,12 +508,10 @@ class AnonymousReportPrompt(View):
         )
         embed.set_footer(text=footer)
         user_ticket_message = interaction.user.send(embed=embed, view = CloseButton())
-        # Moderators cannot see anonymous reports
-        close_ticket_message = await channel.send(embed=embed, view = CloseButton())
-        await user_ticket_message
+        server_ticket_message = channel.send(embed=embed, view = CloseButton())
 
         anonymous_reports.add(interaction.user.id)
-        open_tickets[interaction.user.id] = channel, close_ticket_message
+        open_tickets[interaction.user.id] = channel, [await user_ticket_message, await server_ticket_message]
 
         await interaction.followup.send(
             embed= discord.Embed(
@@ -559,7 +556,7 @@ class AnonymousReportPrompt(View):
             ),
             view = CloseButton()
         )
-        open_tickets[interaction.user.id] = channel, close_ticket_message
+        open_tickets[interaction.user.id] = channel, [close_ticket_message]
 
         await interaction.followup.send(
             embed= discord.Embed(
@@ -575,7 +572,8 @@ class CloseButton(View):
     
     @button(label="Close the ticket",style=discord.ButtonStyle.red,custom_id="closeticket",emoji="🔒")
     async def close(self, interaction: discord.Interaction, button: Button):
-        # await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
+
         target_channel: discord.TextChannel = open_tickets[interaction.user.id][0]
         all_perms = discord.PermissionOverwrite(read_messages = True, send_messages = True, manage_messages = True)
         nations_server = target_channel.guild
@@ -588,18 +586,25 @@ class CloseButton(View):
             interaction.user: discord.PermissionOverwrite(read_messages = True, send_messages=True),
         }
         closed_category = discord.utils.get(nations_server.categories, id=NationsIDs.closed_tickets_category)
-        await target_channel.edit(category=closed_category, overwrites=overwrites)
-        await target_channel.send(
-            embed= discord.Embed(
-                description= f"Ticket Closed for {interaction.user.display_name}",
-                color = discord.Color.red()
+        edit = target_channel.edit(category=closed_category, overwrites=overwrites)
+        trash = target_channel.send(
+            embed=discord.Embed(
+                description=f"This ticket was closed by {interaction.user.mention}"
             ),
             view = TrashButton()
         )
-        close_ticket_message = open_tickets[interaction.user.id][1]
+
+        close_ticket_messages = open_tickets[interaction.user.id][1]
         del open_tickets[interaction.user.id]
         anonymous_reports.discard(interaction.user.id)
-        await close_ticket_message.delete()
+        deletions = [message.delete() for message in close_ticket_messages]
+        followup = interaction.followup.send(
+                embed = discord.Embed(
+                    description=f"Closed ticket for {interaction.user.mention}"
+            ), ephemeral=True)
+        for deletion in deletions:
+            await deletion
+        await edit, await trash, await followup
 
 class TrashButton(View):
     def __init__(self):
