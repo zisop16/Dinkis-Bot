@@ -162,13 +162,17 @@ async def permissions_error(interaction: discord.Interaction, error):
 
 url_regex = re.compile(r"(https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|www\.[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9]+\.[^\s]{2,}|www\.[a-zA-Z0-9]+\.[^\s]{2,})")
 
+thread_author_regex = re.compile("posted by: <@(\d{18})>")
+
 async def get_thread_author(thread: discord.Thread):
     if thread.starter_message is not None:
         start_message = thread.starter_message
     else:
         start_message = await thread.fetch_message(thread.id)
-    thread_author = start_message.author
-    return thread_author
+    # content=f"{recent_message.content}\n\nDon't reply to this thread directly. Instead, DM the author.\n\nLFT thread posted by: {interaction.user.mention}"
+    author_id = int(thread_author_regex.search(start_message.content).groups()[0])
+    member = client.get_user(author_id)
+    return member
 
 from AutoResponseConfig import auto_responses
 @client.event
@@ -196,7 +200,7 @@ async def on_message(message: discord.Message):
         if thread_channel.id == NationsIDs.lft_channel:
             thread = message.channel
             start_message = await thread.fetch_message(thread.id)
-            thread_author = start_message.author
+            thread_author = await get_thread_author(thread)
             if message.author != thread_author:
                 deletion = message.delete()
                 reason = message.author.send(content="You are not allowed to write messages in other users' LFT threads.")

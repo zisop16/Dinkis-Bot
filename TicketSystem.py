@@ -97,7 +97,7 @@ class OpenTickets(View):
             ephemeral = True
         )
 
-    @button(label="General Help",style=discord.ButtonStyle.blurple, emoji="⁉️",custom_id="general_help")
+    @button(label="Ask a Moderator",style=discord.ButtonStyle.blurple, emoji="⁉️",custom_id="general_help")
     async def general_help(self, interaction: discord.Interaction, button: Button):
         await interaction.response.defer(ephemeral=True)
         banned = await check_form_banned(interaction)
@@ -125,7 +125,7 @@ class OpenTickets(View):
             overwrites=overwrites
         )
 
-        open_ticket_message = await channel.send(
+        close_ticket_message = await channel.send(
             content=f"{moderator_role.mention}",
             embed=discord.Embed(
                 title="General help ticket created",
@@ -134,7 +134,7 @@ class OpenTickets(View):
             ),
             view = CloseButton()
         )
-        open_tickets[interaction.user.id] = channel, open_ticket_message
+        open_tickets[interaction.user.id] = channel, [close_ticket_message]
 
         await interaction.followup.send(
             embed= discord.Embed(
@@ -466,9 +466,9 @@ class SubmitButton(View):
                 )
                 return
             team_name = team_name_match.groups()[0]
-            creation = await thread_channel.create_thread(
+            creation: discord.channel.ThreadWithMessage = await thread_channel.create_thread(
                 name=f"{team_name} recruitment thread",
-                content=f"{recent_message.content}\nLFT thread posted by: {interaction.user.mention}"
+                content=f"{recent_message.content}\n\nDon't reply to this thread directly. Instead, DM the author.\n\nLFT thread posted by: {interaction.user.mention}"
             )
         deletion = await (await interaction.original_response()).delete()
 
