@@ -605,29 +605,36 @@ class CloseButton(View):
     async def close(self, interaction: discord.Interaction, button: Button):
         await interaction.response.defer(ephemeral=True)
 
-        target_channel: discord.TextChannel = open_tickets[interaction.user.id][0]
+        anonymous = interaction.channel.guild is None
+        if anonymous:
+            target_channel: discord.TextChannel = open_tickets[interaction.user.id][0]
+        else:
+            target_channel = interaction.channel
         all_perms = discord.PermissionOverwrite(read_messages = True, send_messages = True, manage_messages = True)
         nations_server = target_channel.guild
         moderator_role = nations_server.get_role(NationsIDs.moderator_role)
         admin_role = nations_server.get_role(NationsIDs.admin_role)
         overwrites = {
-            moderator_role: all_perms,
             admin_role: all_perms,
-            nations_server.default_role: discord.PermissionOverwrite(read_messages=False),
-            interaction.user: discord.PermissionOverwrite(read_messages = True, send_messages=True),
+            nations_server.default_role: discord.PermissionOverwrite(read_messages=False)
         }
         closed_category = discord.utils.get(nations_server.categories, id=NationsIDs.closed_tickets_category)
         edit = target_channel.edit(category=closed_category, overwrites=overwrites)
+        
         trash = target_channel.send(
             embed=discord.Embed(
-                description=f"This ticket was closed by {interaction.user.mention}"
+                description=f"This ticket was closed by {interaction.user.mention if not anonymous else 'anonymous'}"
             ),
             view = TrashButton()
         )
 
-        close_ticket_messages = open_tickets[interaction.user.id][1]
-        del open_tickets[interaction.user.id]
-        anonymous_reports.discard(interaction.user.id)
+        for user_id, channels in open_tickets.items():
+            if target_channel in channels:
+                interaction_user_id = user_id
+                break
+        close_ticket_messages = open_tickets[interaction_user_id][1]
+        del open_tickets[interaction_user_id]
+        anonymous_reports.discard(interaction_user_id)
         deletions = [message.delete() for message in close_ticket_messages]
         followup = interaction.followup.send(
                 embed = discord.Embed(
