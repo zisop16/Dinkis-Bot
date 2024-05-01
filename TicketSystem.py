@@ -566,6 +566,37 @@ class AnonymousReportPrompt(View):
             ephemeral=True
         )
 
+class EditButton(View):
+    def __init__(self, message: discord.Message):
+        super().__init__(timeout=None)
+        self.message: discord.Message = message
+
+    @button(label="Submit your thread edit", style=discord.ButtonStyle.blurple, custom_id="thread_edit", emoji='✏️')
+    async def edit(self, interaction: discord.Interaction, button: Button):
+        await interaction.response.defer(ephemeral=True)
+
+        direct_message_channel = interaction.channel
+        recent_message = [message async for message in direct_message_channel.history(limit=1)][0]
+        if recent_message.author != interaction.user:
+            await interaction.followup.send(
+                embed= discord.Embed(
+                    description = f"Please respond to the application before submitting.",
+                    color = discord.Color.blurple()
+                ),
+                ephemeral=True
+            )
+            return
+        
+        edit = self.message.edit(content=f"{recent_message.content}\n\nPosted by: {interaction.user.mention}")
+        followup = interaction.followup.send(
+            embed= discord.Embed(
+                description=f"I've edited your message in thread: {self.message.channel.mention}"
+            ), 
+            ephemeral=True
+        )
+        await edit, await followup
+
+
 class CloseButton(View):
     def __init__(self):
         super().__init__(timeout=None)

@@ -24,6 +24,45 @@ MONGO_USER = os.getenv("MONGO_USER")
 
 DataManager.manager = DataManager.DataManager(MONGO_USER, MONGO_PASS)
 
+@client.tree.command(name="edit")
+async def edit_thread(interaction: discord.Interaction):
+    """
+    Create a form to edit the initial message of this thread, if you are the owner
+    """
+    await interaction.response.defer(ephemeral=True)
+    if type(interaction.channel) != discord.Thread:
+        await interaction.followup.send(embed=discord.Embed(
+            description="You can only use this command in threads"
+        ), ephemeral=True)
+        return
+    thread = interaction.channel
+    author: discord.Member = await get_thread_author(thread)
+    if author != interaction.user:
+        await interaction.followup.send(embed=discord.Embed(
+            description="You didn't make this thread, so you can't edit the starting message"
+        ), ephemeral=True)
+        return
+
+    if thread.starter_message is not None:
+        start_message = thread.starter_message
+    else:
+        start_message = await thread.fetch_message(thread.id)
+    
+    
+    embed = discord.Embed(
+        description=f"Please write your desired new content for the starting message in: {thread.mention}"
+    )
+    message = interaction.user.send(embed=embed, view=EditButton(start_message))
+
+    followup = interaction.followup.send(
+        embed = discord.Embed(
+            description="I've sent you a form regarding your edit"
+        ),
+        ephemeral=True
+    )
+    await message, await followup
+
+
 @client.tree.command(name="warn")
 @app_commands.describe(user="User to warn")
 @app_commands.checks.has_permissions(moderate_members=True)
@@ -162,7 +201,7 @@ async def permissions_error(interaction: discord.Interaction, error):
 
 url_regex = re.compile(r"(https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|www\.[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9]+\.[^\s]{2,}|www\.[a-zA-Z0-9]+\.[^\s]{2,})")
 
-thread_author_regex = re.compile("posted by: <@(\d{18})>")
+thread_author_regex = re.compile(": <@(\d{18})>")
 
 async def get_thread_author(thread: discord.Thread):
     if thread.starter_message is not None:
