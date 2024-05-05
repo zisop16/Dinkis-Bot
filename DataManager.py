@@ -1,4 +1,5 @@
 from pymongo import MongoClient
+import requests
 import time
 import datetime
 
@@ -18,6 +19,14 @@ class DataManager:
     
     def user_exists(self, user_id):
         return self.get_user(user_id) is not None
+    
+    def get_server_data(self):
+        req_url = "https://api.mcsrvstat.us/3/play.mcnations.org"
+        data = requests.get(req_url).json()
+        online = data["online"]
+        if not online:
+            return False, 0
+        return True, data["players"]["online"]
     
     def add_user(self, user_id):
         post = {

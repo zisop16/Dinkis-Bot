@@ -66,14 +66,17 @@ async def edit_thread(interaction: discord.Interaction):
 @client.tree.command(name="warn")
 @app_commands.describe(user="User to warn")
 @app_commands.checks.has_permissions(moderate_members=True)
-async def issue_warning(interaction: discord.Interaction, user: discord.Member):
+async def issue_warning(interaction: discord.Interaction, user: discord.Member, reason: str = None):
     """
     Warn a user, keeping a running count over multiple warnings
     """
     DataManager.manager.add_warning(user.id)
     warnings = DataManager.manager.get_warnings(user.id)
+    description=f"User: {user.mention} now has {warnings} warning{'' if warnings == 1 else 's total.'}"
+    if reason != None:
+        description += f"\nReason: {reason}"
     await interaction.response.send_message(embed = discord.Embed(
-        description=f"User: {user.mention} now has {warnings} warning{'' if warnings == 1 else 's total.'}"
+        description=description
     ))
 
 @client.tree.command(name="unwarn")
@@ -126,11 +129,11 @@ async def create_announcement(interaction: discord.Interaction, title: str, ping
     pings_role = interaction.guild.get_role(NationsIDs.pings_role)
     server_status_role = interaction.guild.get_role(NationsIDs.server_status_role)
     message = bytes(message, "utf-8").decode("unicode_escape")
-    message = f"{pings_role.mention if pings else ''} {server_status_role.mention if server_status else ''}\n{message}"
+    pings = f"{pings_role.mention + ' ' if pings else ''}{server_status_role.mention if server_status else ''}"
     await announcements_channel.send(embed=discord.Embed(
         title=title,
         description=message
-    ))
+    ), content=pings)
     
     await interaction.followup.send(embed = discord.Embed(
         description=f"Created your {title} announcement in channel: {announcements_channel.mention}"
@@ -271,6 +274,21 @@ async def on_message(message: discord.Message):
                 await asyncio.sleep(60)
                 await download_message.delete()
                 return
+            
+async def poll_server_data():
+    server = client.get_guild(NationsIDs.server)
+    status_channel = server.get_channel(NationsIDs.server_status_channel)
+    count_channel = server.get_channel(NationsIDs.player_count_channel)
+    while True:
+        server_online, count = DataManager.manager.get_server_data()
+        player_count_text = f"🟢 Players: {count}"
+        status_text = f"{'🟢' if server_online else '🔴'} Status: {'Online' if server_online else 'Offline'}"
+        count_edit = count_channel.edit(name=player_count_text)
+        status_edit = status_channel.edit(name=status_text)
+        await count_edit, await status_edit
+        await asyncio.sleep(5)
+    
+
         
 @client.event
 async def on_ready():
@@ -280,7 +298,9 @@ async def on_ready():
     client.add_view(TrashButton())
     clean = clean_tickets(client)
     sync = client.tree.sync()
+    polling = poll_server_data()
     await clean, await sync
     print("mister dinkis is ready")
+    await polling
 
 client.run(BOT_TOKEN)
