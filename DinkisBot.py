@@ -1,6 +1,6 @@
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 import os
 from dotenv import load_dotenv, find_dotenv
 import re
@@ -94,7 +94,6 @@ async def remove_warning(interaction: discord.Interaction, user: discord.Member)
 
 @client.tree.command(name="helpmessage")
 @app_commands.describe(setting="Whether to enable the bot help messages")
-@app_commands.checks.has_permissions(moderate_members=True)
 async def help_message_setting(interaction: discord.Interaction, setting: bool):
     """
     Set whether to allow auto help messages from bot
@@ -275,6 +274,7 @@ async def on_message(message: discord.Message):
                 await download_message.delete()
                 return
             
+@tasks.loop(seconds = 5)
 async def poll_server_data():
     server = client.get_guild(NationsIDs.server)
     status_channel = server.get_channel(NationsIDs.server_status_channel)
@@ -298,9 +298,9 @@ async def on_ready():
     client.add_view(TrashButton())
     clean = clean_tickets(client)
     sync = client.tree.sync()
-    polling = poll_server_data()
     await clean, await sync
+    await poll_server_data.start()
     print("mister dinkis is ready")
-    await polling
+
 
 client.run(BOT_TOKEN)
