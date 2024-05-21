@@ -274,19 +274,17 @@ async def on_message(message: discord.Message):
                 await download_message.delete()
                 return
             
-@tasks.loop(seconds = 5)
+@tasks.loop(seconds = 30)
 async def poll_server_data():
     server = client.get_guild(NationsIDs.server)
     status_channel = server.get_channel(NationsIDs.server_status_channel)
     count_channel = server.get_channel(NationsIDs.player_count_channel)
-    while True:
-        server_online, count = DataManager.manager.get_server_data()
-        player_count_text = f"🟢 Players: {count}"
-        status_text = f"{'🟢' if server_online else '🔴'} Status: {'Online' if server_online else 'Offline'}"
-        count_edit = count_channel.edit(name=player_count_text)
-        status_edit = status_channel.edit(name=status_text)
-        await count_edit, await status_edit
-        await asyncio.sleep(5)
+    server_online, count = DataManager.manager.get_server_data()
+    player_count_text = f"🟢 Players: {count}"
+    status_text = f"{'🟢' if server_online else '🔴'} Status: {'Online' if server_online else 'Offline'}"
+    count_edit = count_channel.edit(name=player_count_text)
+    status_edit = status_channel.edit(name=status_text)
+    await count_edit, await status_edit
     
 
         
